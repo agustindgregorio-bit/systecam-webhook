@@ -117,9 +117,13 @@ const STATES = {
     next: { a: "SPORT_PROPOSAL", b: "SPORT_NO_THANKS", c: "PARTICULAR" }
   },
 
-  // AMARILLO - Sport proposal (pending PDF)
+  // AMARILLO - Sport proposal (sends PDF)
   SPORT_PROPOSAL: {
-    msg: 'Genial, eligio la opcion "a." Si, enviamela completa. Nuestro equipo le enviara la propuesta completa de Systecam Sport en el proximo horario de atencion (lunes a sabado de 09:00 a 13:00). Te puedo ayudar con algo mas?\n\na. Si, volver al menu principal\nb. No, gracias',
+    msg: 'Genial, eligio la opcion "a." Si, enviamela completa. Te envio ahora mismo la propuesta completa de Systecam Sport! Cualquier consulta adicional, nuestro equipo esta disponible de lunes a sabado de 09:00 a 13:00. Te puedo ayudar con algo mas?\n\na. Si, volver al menu principal\nb. No, gracias',
+    sendPDF: true,
+    pdfUrl: 'https://base44.app/api/apps/6a62196e2adcb0256123773e/files/mp/public/6a62196e2adcb0256123773e/85232d902_61f6a1511_SystecamSport-Propuestacomercial.pdf',
+    pdfName: 'Systecam-Sport-Propuesta-Comercial.pdf',
+    pdfCaption: 'Propuesta Comercial - SYSTECAM Sport',
     next: { a: "START", b: "END_NO_THANKS" }
   },
 
@@ -201,6 +205,35 @@ async function sendWhatsApp(to, text) {
   }
 }
 
+// ============ SEND PDF DOCUMENT ============
+
+async function sendWhatsAppDocument(to, url, filename, caption) {
+  var docUrl = "https://graph.facebook.com/v19.0/" + PHONE_NUMBER_ID + "/messages";
+  try {
+    var res = await fetch(docUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + META_TOKEN
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: to,
+        type: "document",
+        document: {
+          link: url,
+          filename: filename,
+          caption: caption
+        }
+      })
+    });
+    var data = await res.json();
+    console.log("WhatsApp PDF send:", JSON.stringify(data));
+  } catch (err) {
+    console.error("Error sending PDF:", err.message);
+  }
+}
+
 // ============ MESSAGE PROCESSING ============
 
 function processMessage(from, userText) {
@@ -211,15 +244,15 @@ function processMessage(from, userText) {
   if (STATES[currentState] && STATES[currentState].isEnd) {
     if (text.match(/^(hola|buenas|buen[ao]s|hi|hello|saludos|buenas tardes|buenas noches|buenos dias|buen dia|hola cesy)/)) {
       userStates.set(from, "START");
-      return STATES.START.msg;
+      return { msg: STATES.START.msg };
     }
-    return 'Gracias por tu mensaje! Si necesitas ayuda, escribi "hola Cesy" para comenzar de nuevo. 😊';
+    return { msg: 'Gracias por tu mensaje! Si necesitas ayuda, escribi "hola Cesy" para comenzar de nuevo. 😊' };
   }
 
   // If no state (first message) or user sends a greeting
   if (currentState === "START" && text.match(/^(hola|buenas|buen[ao]s|hi|hello|saludos|buenas tardes|buenas noches|buenos dias|buen dia|hola cesy)/)) {
     userStates.set(from, "START");
-    return STATES.START.msg;
+    return { msg: STATES.START.msg };
   }
 
   var state = STATES[currentState];
@@ -237,13 +270,13 @@ function processMessage(from, userText) {
       userStates.set(from, nextState);
       var next = STATES[nextState];
       if (next) {
-        return next.msg;
+        return { msg: next.msg, sendPDF: next.sendPDF || false, pdfUrl: next.pdfUrl, pdfName: next.pdfName, pdfCaption: next.pdfCaption };
       }
     }
   }
 
   // If input not recognized, show current state message again with a hint
-  return 'Por favor, elegi una opcion valida (a, b, c, etc.). 😊\n\n' + state.msg;
+  return { msg: 'Por favor, elegi una opcion valida (a, b, c, etc.). 😊\n\n' + state.msg };
 }
 
 // ============ WEBHOOK ENDPOINTS ============
@@ -282,8 +315,11 @@ app.post("/webhook", async function(req, res) {
     }
     if (!userText) return;
     console.log("Mensaje de " + from + ": " + userText);
-    var reply = processMessage(from, userText);
-    await sendWhatsApp(from, reply);
+    var result = processMessage(from, userText);
+    await sendWhatsApp(from, result.msg);
+    if (result.sendPDF) {
+      await sendWhatsAppDocument(from, result.pdfUrl, result.pdfName, result.pdfCaption);
+    }
     console.log("Respuesta enviada a " + from);
   } catch (err) {
     console.error("Error: " + err.message);

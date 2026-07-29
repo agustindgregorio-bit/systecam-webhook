@@ -10,7 +10,6 @@ const PHONE_NUMBER_ID = "1267250503134581";
 var CALENDAR_API = "https://cesy.base44.app/api/apps/6a62196e2adcb0256123773e/functions/calendarManager";
 
 // ============ STATE MACHINE ============
-// userStates: phone -> { state: "STATE_NAME", data: {} }
 var userStates = new Map();
 
 // ============ MENU TEXTS ============
@@ -90,90 +89,98 @@ function buildAvailabilityMsg(slots, eventType) {
   for (var i = 0; i < slots.length && i < 8; i++) {
     var s = slots[i];
     var capLabel = s.weekday.charAt(0).toUpperCase() + s.weekday.slice(1);
-    msg += letters[i] + '. 📅 ' + capLabel + ' ' + s.dayNum + '/' + s.monthName + ' a las ' + s.hour + '\n\n';
+    msg += letters[i] + '. 📅 ' + capLabel + ' ' + s.dayNum + '/' + s.monthName + '\n\n';
   }
   
   // Add "ver siguientes" and "sabado/domingo" options
   var nextLetter = slots.length < 8 ? letters[slots.length] : 'i';
   msg += nextLetter + '. ➡️ Ver siguientes fechas\n\n';
   var lastLetter = String.fromCharCode(nextLetter.charCodeAt(0) + 1);
-  msg += lastLetter + '. 📋 Necesito fecha para un sabado/domingo';
+  msg += lastLetter + '. 📋 Necesito fecha para un sabado/domingo\n\n';
+  msg += '_Podes elegir uno o mas dias separados por coma. Ej: a,b,c_';
   
   return msg;
+}
+
+// ============ PARSE MULTI-DAY SELECTION ============
+
+function parseSelection(text, maxSlots) {
+  var letters = "abcdefghijklmnopqrstuvwxyz";
+  var cleaned = text.toLowerCase().trim().replace(/\s/g, "");
+  var parts = cleaned.split(",");
+  var indices = [];
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].trim();
+    if (p.length === 1) {
+      var idx = letters.indexOf(p);
+      if (idx >= 0 && idx < maxSlots && indices.indexOf(idx) === -1) {
+        indices.push(idx);
+      }
+    }
+  }
+  return indices;
 }
 
 // ============ STATE DEFINITIONS ============
 
 var STATES = {
-  // AZUL - Main menu
   START: {
     msg: MAIN_MENU,
     next: { a: "PARTICULAR", b: "CORPORATIVO" }
   },
 
-  // CELESTE - Particular
   PARTICULAR: {
     msg: PARTICULAR_MENU,
     next: { a: "EQUIPMENT", b: "SERVICE_TECH", c: "SPORT", d: "TALK_PERSON" }
   },
 
-  // CORPORATIVO - First step: existing or new?
   CORPORATIVO: {
     msg: 'Perfecto, elegiste la opcion "b." *Cliente corporativo*. Ya es un cliente de *Systecam* o es la primera vez que se contacta?\n\na. ✅ Si, ya soy cliente\n\nb. 🆕 No, soy nuevo',
     next: { a: "CORP_EXISTING", b: "CORP_NEW" }
   },
 
-  // CORP_EXISTING - Ask for company name or CUIT (FREE TEXT)
   CORP_EXISTING: {
     msg: 'Entendido, elegiste la opcion "a." *Si, ya soy cliente*. Por favor identifiquese con el *nombre de la empresa* o su *CUIT*',
     freeText: true,
     next: "CORP_IDENTIFIED"
   },
 
-  // CORP_NEW - Ask for company name (FREE TEXT)
   CORP_NEW: {
     msg: 'Entendido, elegiste la opcion "b." *No, soy nuevo*. Por favor me puede brindar el *nombre de la empresa* a la que representa para poder agendarlos?',
     freeText: true,
     next: "CORP_IDENTIFIED"
   },
 
-  // CORP_IDENTIFIED - Show 3 options (company name inserted dynamically)
   CORP_IDENTIFIED: {
-    msg: "DYNAMIC", // will be built dynamically with company name
+    msg: "DYNAMIC",
     next: { a: "CORP_SCHEDULE_TRABAJO", b: "CORP_SCHEDULE_RELEVAMIENTO", c: "CORP_TECNICO" }
   },
 
-  // CORP_SCHEDULE_TRABAJO - Get availability for trabajo
   CORP_SCHEDULE_TRABAJO: {
     isDynamic: true,
     eventType: "trabajo"
   },
 
-  // CORP_SCHEDULE_RELEVAMIENTO - Get availability for relevamiento
   CORP_SCHEDULE_RELEVAMIENTO: {
     isDynamic: true,
     eventType: "relevamiento"
   },
 
-  // CORP_TECNICO - Talk to technician
   CORP_TECNICO: {
     msg: 'Bien, elegiste la opcion "c." *Comunicarme con el tecnico para hablar sobre un proyecto*. Perfecto!! Te dejo el contacto de nuestro tecnico *Gregorio Agustin* (1167684802). Igualmente le voy a dejar un recordatorio a las 18:00 para que se comunique con usted.\n\na. 🏠 Volver al menu principal\n\nb. 👋 No, gracias',
     next: { a: "CONFIRM_MAIN", b: "END_NO_THANKS" }
   },
 
-  // VERDE CLARO - Equipment list
   EQUIPMENT: {
     msg: EQUIPMENT_MENU,
     next: { a: "CAMERAS", b: "ALARMA", c: "PORTERO", d: "CONTROL", e: "MULTI", f: "PARTICULAR" }
   },
 
-  // AMARILLO - Camera quantities
   CAMERAS: {
     msg: CAMERAS_MENU,
     next: { a: "CAM1", b: "CAM2", c: "CAM3", d: "CAM4", e: "CAM5", f: "CAM6", g: "CAM7", h: "CAM8", i: "CAM_MORE", j: "EQUIPMENT" }
   },
 
-  // NARANJA - Camera prices (1-8)
   CAM1: { msg: cameraPriceMsg("a", 1, "169.400"), next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "CAMERAS" } },
   CAM2: { msg: cameraPriceMsg("b", 2, "230.296"), next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "CAMERAS" } },
   CAM3: { msg: cameraPriceMsg("c", 3, "290.173"), next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "CAMERAS" } },
@@ -188,7 +195,6 @@ var STATES = {
     next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "CAMERAS" }
   },
 
-  // AMARILLO - Equipment prices
   ALARMA: { msg: equipmentPriceMsg("b", "una central de alarma", "169.400"), next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "EQUIPMENT" } },
   PORTERO: { msg: equipmentPriceMsg("c", "un portero visor", "169.400"), next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "EQUIPMENT" } },
   CONTROL: { msg: equipmentPriceMsg("d", "un control de acceso", "169.400"), next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "EQUIPMENT" } },
@@ -198,13 +204,11 @@ var STATES = {
     next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "EQUIPMENT" }
   },
 
-  // VERDE CLARO - Service tech
   SERVICE_TECH: {
     msg: 'Bien, elegiste la opcion "b." *Servicio tecnico* 🔧. Te comento, nuestro servicio tecnico basico tiene un valor de *$169.400,00*. El mismo puede variar segun la complejidad del trabajo a realizar, puede ser mas o menos. Por favor, elija alguna de las siguientes respuestas para avanzar:\n\na. ✅ Me interesa, seguir el cierre del presupuesto con una persona\n\nb. ❌ No me interesa\n\nc. ↩️ Volver al menu anterior',
     next: { a: "INTERESTED_TECH", b: "NOT_INTERESTED_TECH", c: "PARTICULAR" }
   },
 
-  // VERDE CLARO - Systecam Sport
   SPORT: {
     msg: 'Bien, elegiste la opcion "c." *Systecam Sport* ⚽. Te cuento, con *Systecam Sport* tu club puede ofrecer a los jugadores la posibilidad de ver, descargar y compartir sus partidos desde una *app exclusiva*, brindando una experiencia unica. Nosotros instalamos todo el sistema, aportamos el equipamiento en comodato y nos ocupamos del soporte y mantenimiento. Es una excelente forma de *diferenciarte de la competencia*, fidelizar a tus clientes y sumar un nuevo valor a tus canchas. Te gustaria que te envie la propuesta completa?\n\na. 📄 Si, enviamela completa\n\nb. 👋 No, gracias\n\nc. ↩️ Volver al menu anterior',
     next: { a: "SPORT_PROPOSAL", b: "SPORT_NO_THANKS", c: "PARTICULAR" }
@@ -230,7 +234,6 @@ var STATES = {
     next: { a: "START", b: "END_NO_THANKS" }
   },
 
-  // BORDO - Interested
   INTERESTED: {
     msg: INTERESTED_MSG,
     next: { a: "CONFIRM_MAIN", b: "END_NO_THANKS" }
@@ -261,15 +264,13 @@ var STATES = {
     isEnd: true
   },
 
-  // CORP_WEEKEND - No weekend booking
   CORP_WEEKEND: {
     msg: 'Entendido!! En ese caso dejo asentado tu solicitud y la confirmacion para esos dias te la dara nuestro personal que atiende de *09:00 a 13:00 de lunes a sabados* 📞. Te puedo ayudar con otra consulta?\n\na. 🏠 Volver al menu principal\n\nb. 👋 No, gracias',
     next: { a: "CONFIRM_MAIN", b: "END_NO_THANKS" }
   },
 
-  // CORP_BOOKED - Confirmation after booking
   CORP_BOOKED: {
-    msg: "DYNAMIC", // built dynamically after createEvent
+    msg: "DYNAMIC",
     next: { a: "CONFIRM_MAIN", b: "END_NO_THANKS" }
   }
 };
@@ -337,7 +338,7 @@ async function processMessage(from, userText) {
   var data = stateObj.data || {};
   var state = STATES[currentState];
 
-  // If in an END state, only respond to greetings
+  // END state - only respond to greetings
   if (state && state.isEnd) {
     if (text.match(/^(hola|buenas|buen[ao]s|hi|hello|saludos|buenas tardes|buenas noches|buenos dias|buen dia|hola cesy)/)) {
       userStates.set(from, { state: "START", data: {} });
@@ -346,7 +347,7 @@ async function processMessage(from, userText) {
     return { msg: 'Gracias por tu mensaje! Si necesitas ayuda, escribi *"hola Cesy"* para comenzar de nuevo. 😊' };
   }
 
-  // If no state (first message) or user sends a greeting
+  // Greeting at START
   if (currentState === "START" && text.match(/^(hola|buenas|buen[ao]s|hi|hello|saludos|buenas tardes|buenas noches|buenos dias|buen dia|hola cesy)/)) {
     userStates.set(from, { state: "START", data: {} });
     return { msg: STATES.START.msg };
@@ -357,7 +358,7 @@ async function processMessage(from, userText) {
     return { msg: STATES.START.msg };
   }
 
-  // Handle FREE TEXT states (company name capture)
+  // FREE TEXT states (company name capture)
   if (state.freeText) {
     var companyName = userText.trim();
     if (companyName.length < 2) {
@@ -366,73 +367,81 @@ async function processMessage(from, userText) {
     data.companyName = companyName;
     var nextStateName = state.next;
     userStates.set(from, { state: nextStateName, data: data });
-    var nextDef = STATES[nextStateName];
-    // Build identified message with company name
     var idMsg = 'Genial, gracias!! Te has identificado como *"' + companyName + '"*. Cual es el motivo de tu mensaje?\n\na. 📅 Necesito agendar una fecha para un trabajo\n\nb. 📋 Necesito agendar una fecha para realizar un relevamiento\n\nc. 👤 Necesito comunicarme con el tecnico para hablar sobre un proyecto';
     return { msg: idMsg };
   }
 
-  // Handle DYNAMIC states (availability - needs API call)
+  // DYNAMIC states (availability - needs API call)
   if (state.isDynamic) {
     var eventType = state.eventType;
     
     // Check if user is selecting from already-shown slots
     if (data.slots && data.slots.length > 0) {
       var letters = "abcdefghijklmnopqrstuvwxyz";
-      var option = text.match(/^([a-z])/);
-      if (option) {
-        var letter = option[1];
-        var idx = letters.indexOf(letter);
+      var numSlots = data.slots.length;
+      var nextLetterIdx = numSlots < 8 ? numSlots : 8;
+      var verSiguientesLetter = letters[nextLetterIdx];
+      var weekendLetter = letters[nextLetterIdx + 1];
+      
+      // Check for "ver siguientes fechas"
+      if (text === verSiguientesLetter) {
+        var lastSlot = data.slots[data.slots.length - 1];
+        var newStartDate = new Date(lastSlot.startISO);
+        newStartDate.setDate(newStartDate.getDate() + 1);
         
-        // Check if it's a slot selection
-        if (idx >= 0 && idx < data.slots.length) {
-          var slot = data.slots[idx];
-          var typeWord = eventType === "trabajo" ? "Trabajo" : "Relevamiento";
-          var title = typeWord + " - " + (data.companyName || "Cliente corporativo");
-          var desc = typeWord + " solicitado por " + (data.companyName || "cliente corporativo") + " desde WhatsApp. Telefono: " + from;
-          
+        var moreSlots = await getAvailability(eventType, newStartDate.toISOString());
+        if (moreSlots.available && moreSlots.available.length > 0) {
+          data.slots = moreSlots.available;
+          userStates.set(from, { state: currentState, data: data });
+          var moreMsg = buildAvailabilityMsg(data.slots, eventType);
+          return { msg: moreMsg };
+        } else {
+          return { msg: "No hay mas fechas disponibles en las proximas dos semanas. Por favor comunicate con nuestro personal de *lunes a sabado de 09:00 a 13:00*. 📞\n\na. 🏠 Volver al menu principal" };
+        }
+      }
+      
+      // Check for weekend option
+      if (text === weekendLetter) {
+        userStates.set(from, { state: "CORP_WEEKEND", data: {} });
+        return { msg: STATES.CORP_WEEKEND.msg };
+      }
+      
+      // Parse multi-day selection (e.g. "a,b,c" or "a" or "b,f")
+      var selectedIndices = parseSelection(text, numSlots);
+      
+      if (selectedIndices.length > 0) {
+        var typeWord = eventType === "trabajo" ? "Trabajo" : "Relevamiento";
+        var title = typeWord + " - " + (data.companyName || "Cliente corporativo");
+        var desc = typeWord + " solicitado por " + (data.companyName || "cliente corporativo") + " desde WhatsApp. Telefono: " + from;
+        
+        // Create events for each selected day
+        var bookedDates = [];
+        var errors = [];
+        
+        for (var d = 0; d < selectedIndices.length; d++) {
+          var slot = data.slots[selectedIndices[d]];
           var result = await createCalendarEvent(slot.startISO, slot.endISO, title, desc);
-          
           if (result.success) {
-            userStates.set(from, { state: "CORP_BOOKED", data: {} });
-            var bookedMsg = 'Listo!! Quedo agendado para el *' + result.confirmationDate + '* a las *' + result.confirmationTime + ' hs*. Le enviamos la invitacion al calendario. Si necesita modificar algo, nuestro personal lo atendera de *lunes a sabado de 09:00 a 13:00*. 📅\n\nTe puedo ayudar con otra consulta?\n\na. 🏠 Volver al menu principal\n\nb. 👋 No, gracias';
-            return { msg: bookedMsg };
+            bookedDates.push(result.confirmationDate);
           } else {
-            return { msg: "Hubo un problema al agendar. Por favor comunicate con nuestro personal de *lunes a sabado de 09:00 a 13:00*. 📞\n\na. 🏠 Volver al menu principal" };
+            errors.push(slot.label);
           }
         }
         
-        // Check for "ver siguientes fechas" option
-        var nextLetterIdx = data.slots.length < 8 ? data.slots.length : 8;
-        var verSiguientesLetter = letters[nextLetterIdx];
-        var weekendLetter = letters[nextLetterIdx + 1];
-        
-        if (letter === verSiguientesLetter) {
-          // Fetch more slots starting from after the last shown slot
-          var lastSlot = data.slots[data.slots.length - 1];
-          var newStartDate = new Date(lastSlot.startISO);
-          newStartDate.setDate(newStartDate.getDate() + 1);
-          
-          var moreSlots = await getAvailability(eventType, newStartDate.toISOString());
-          if (moreSlots.available && moreSlots.available.length > 0) {
-            data.slots = moreSlots.available;
-            userStates.set(from, { state: currentState, data: data });
-            var moreMsg = buildAvailabilityMsg(data.slots, eventType);
-            return { msg: moreMsg };
-          } else {
-            return { msg: "No hay mas fechas disponibles en las proximas dos semanas. Por favor comunicate con nuestro personal de *lunes a sabado de 09:00 a 13:00*. 📞\n\na. 🏠 Volver al menu principal" };
-          }
-        }
-        
-        // Check for weekend option
-        if (letter === weekendLetter) {
-          userStates.set(from, { state: "CORP_WEEKEND", data: {} });
-          return { msg: STATES.CORP_WEEKEND.msg };
+        if (bookedDates.length > 0) {
+          userStates.set(from, { state: "CORP_BOOKED", data: {} });
+          var dayWord = bookedDates.length === 1 ? "el" : "los";
+          var dateList = bookedDates.join(", ");
+          var extraInfo = bookedDates.length === 1 ? "" : " (" + bookedDates.length + " dias)";
+          var bookedMsg = 'Listo!! Quedo agendado para ' + dayWord + ' *' + dateList + '*' + extraInfo + '. Te enviamos la invitacion al calendario. Si necesitas modificar algo, nuestro personal lo atendera de *lunes a sabado de 09:00 a 13:00*. 📅\n\nTe puedo ayudar con otra consulta?\n\na. 🏠 Volver al menu principal\n\nb. 👋 No, gracias';
+          return { msg: bookedMsg };
+        } else {
+          return { msg: "Hubo un problema al agendar. Por favor comunicate con nuestro personal de *lunes a sabado de 09:00 a 13:00*. 📞\n\na. 🏠 Volver al menu principal" };
         }
       }
       
       // Invalid option - show slots again
-      var retryMsg = "Por favor, elegi una opcion valida. 😊\n\n" + buildAvailabilityMsg(data.slots, eventType);
+      var retryMsg = "Por favor, elegi una opcion valida. Podes elegir uno o mas dias separados por coma. 😊\n\n" + buildAvailabilityMsg(data.slots, eventType);
       return { msg: retryMsg };
     }
     
@@ -461,7 +470,7 @@ async function processMessage(from, userText) {
       if (next) {
         var resultObj = { msg: next.msg, sendPDF: next.sendPDF || false, pdfUrl: next.pdfUrl, pdfName: next.pdfName, pdfCaption: next.pdfCaption };
         
-        // If entering a dynamic state, we need to fetch availability
+        // If entering a dynamic state, fetch availability
         if (next.isDynamic) {
           var eventType2 = next.eventType;
           var availResult2 = await getAvailability(eventType2, null);
@@ -482,7 +491,7 @@ async function processMessage(from, userText) {
     }
   }
 
-  // If input not recognized, show current state message again with a hint
+  // Invalid input - show current state message again
   var hintMsg = "Por favor, elegi una opcion valida (a, b, c, etc.) 😊\n\n" + state.msg;
   return { msg: hintMsg };
 }

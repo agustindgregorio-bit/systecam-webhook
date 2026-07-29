@@ -7,48 +7,47 @@ const META_TOKEN = process.env.META_WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = "1267250503134581";
 
 // ============ STATE MACHINE ============
-// Each user's current state is stored in memory, keyed by phone number
 const userStates = new Map();
 
 // ============ MENU TEXTS ============
 
 // AZUL - Main menu
-const MAIN_MENU = "Hola! Como estas? Soy Cesy, la asistente virtual de Systecam. Selecciona que tipo de cliente sos:\n\na. Cliente particular\nb. Cliente corporativo";
+const MAIN_MENU = "Hola! Como estas? Soy *Cesy*, la asistente virtual de *Systecam*. Selecciona que tipo de cliente sos:\n\na. 🏠 Cliente particular\n\nb. 🏢 Cliente corporativo";
 
 // CELESTE - Particular submenu
-const PARTICULAR_MENU = 'Perfecto, elegiste la opcion "a." Cliente particular. Cual es el motivo de tu mensaje?\n\na. Necesito presupuesto para instalar y configurar un equipo de seguridad\nb. Necesito presupuesto por un servicio tecnico\nc. Necesito informacion con respecto a Systecam Sport\nd. Necesito hablar con una persona';
+const PARTICULAR_MENU = 'Perfecto, elegiste la opcion "a." *Cliente particular*. Cual es el motivo de tu mensaje?\n\na. 🛡️ Necesito presupuesto para instalar y configurar un equipo de seguridad\n\nb. 🔧 Necesito presupuesto por un servicio tecnico\n\nc. ⚽ Necesito informacion con respecto a *Systecam Sport*\n\nd. 👤 Necesito hablar con una persona';
 
 // VERDE CLARO - Equipment list
-const EQUIPMENT_MENU = 'Bien, elegiste la opcion "a." Necesito presupuesto para instalar y configurar un equipo de seguridad. Que equipo necesitas instalar?\n\na. Camaras de seguridad\nb. Central de alarma\nc. Portero visor\nd. Control de acceso\ne. Necesito presupuesto por mas de unas de las opciones presentadas\nf. Volver al menu anterior';
+const EQUIPMENT_MENU = 'Bien, elegiste la opcion "a." *Presupuesto para equipo de seguridad*. Que equipo necesitas instalar?\n\na. 📷 Camaras de seguridad\n\nb. 🔔 Central de alarma\n\nc. 🚪 Portero visor\n\nd. 🔑 Control de acceso\n\ne. 📋 Presupuesto por mas de una de las opciones\n\nf. ↩️ Volver al menu anterior';
 
 // AMARILLO - Camera quantities
-const CAMERAS_MENU = 'Genial, eligio la opcion "a." Camaras de seguridad. Cuantas camaras necesita instalar?\n\na. Quiero instalar 1 camara\nb. Quiero instalar 2 camaras\nc. Quiero instalar 3 camaras\nd. Quiero instalar 4 camaras\ne. Quiero instalar 5 camaras\nf. Quiero instalar 6 camaras\ng. Quiero instalar 7 camaras\nh. Quiero instalar 8 camaras\ni. Quiero instalar mas de 8 camaras\nj. Volver al menu anterior';
+const CAMERAS_MENU = 'Genial! Elegiste *Camaras de seguridad* 📷. Cuantas camaras necesita instalar?\n\na. 📹 1 camara\n\nb. 📹 2 camaras\n\nc. 📹 3 camaras\n\nd. 📹 4 camaras\n\ne. 📹 5 camaras\n\nf. 📹 6 camaras\n\ng. 📹 7 camaras\n\nh. 📹 8 camaras\n\ni. 📹 Mas de 8 camaras\n\nj. ↩️ Volver al menu anterior';
 
 // NARANJA - Camera price closing options
-const PRICE_CLOSING = "\n\na. Me interesa, seguir el cierre del presupuesto con una persona\nb. No me interesa\nc. Volver al menu anterior";
+const PRICE_CLOSING = "\n\na. ✅ Me interesa, seguir el cierre del presupuesto con una persona\n\nb. ❌ No me interesa\n\nc. ↩️ Volver al menu anterior";
 
 // BORDO - Interested closing
-const INTERESTED_MSG = 'Eligio la opcion "a" Me interesa, seguir el cierre del presupuesto con una persona. Para el seguimiento con nuestro personal deberas esperar al horario de atencion, que es de lunes a viernes de 09:00 a 13:00. Ni bien lea su solicitud le daran una respuesta. Te puedo ayudar con otra consulta?\n\na. Si, volver al menu principal\nb. No, gracias';
+const INTERESTED_MSG = 'Eligio la opcion "a" *Me interesa*, seguir el cierre del presupuesto con una persona. Para el seguimiento con nuestro personal deberas esperar al horario de atencion, que es de *lunes a viernes de 09:00 a 13:00*. Ni bien lea su solicitud le daran una respuesta. Te puedo ayudar con otra consulta?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias';
 
 // Close messages
-const NOT_INTERESTED_CLOSE = 'Eligio la opcion "b" No me interesa. Entendido!! Cualquier cosa te podes volver a comunicar conmigo con un "hola Cesy" o con nuestro personal que estan de lunes a sabado de 09:00 a 13:00. Doy por finalizada la conversacion, que termine bien su dia!!';
+const NOT_INTERESTED_CLOSE = 'Entendido!! Cualquier cosa te podes volver a comunicar conmigo con un *"hola Cesy"* o con nuestro personal que estan de *lunes a sabado de 09:00 a 13:00*. Doy por finalizada la conversacion, que termine bien su dia! 👋';
 
-const NO_THANKS_CLOSE = 'Eligio la opcion "b" No, gracias. Entendido!! Cualquier cosa te podes volver a comunicar conmigo con un "hola Cesy" o con nuestro personal que estan de lunes a sabado de 09:00 a 13:00. Doy por finalizada la conversacion, que termine bien su dia!!';
+const NO_THANKS_CLOSE = 'Entendido!! Cualquier cosa te podes volver a comunicar conmigo con un *"hola Cesy"* o con nuestro personal que estan de *lunes a sabado de 09:00 a 13:00*. Doy por finalizada la conversacion, que termine bien su dia! 👋';
 
 // ============ HELPER FUNCTIONS ============
 
 function cameraPriceMsg(optionLetter, count, price) {
   var word = count === 1 ? "camara" : "camaras";
-  return 'Perfecto, eligio la opcion "' + optionLetter + '" Quiero instalar ' + count + ' ' + word + '. Te comento, el valor aproximado por la instalacion de ' + count + ' ' + word + ' de seguridad esta $' + price + ',00 final IVA incluido. El mismo puede variar segun la complejidad del trabajo a realizar o la lejania de la zona, puede ser mas o menos. Por favor, elija alguna de las siguientes respuestas para avanzar:' + PRICE_CLOSING;
+  return 'Perfecto! Elegiste *' + count + ' ' + word + '* 📹. Te comento, el valor aproximado por la instalacion de ' + count + ' ' + word + ' de seguridad esta *$' + price + ',00* final IVA incluido. El mismo puede variar segun la complejidad del trabajo a realizar o la lejania de la zona, puede ser mas o menos. Por favor, elija alguna de las siguientes respuestas para avanzar:' + PRICE_CLOSING;
 }
 
 function equipmentPriceMsg(optionLetter, name, price) {
-  return 'Genial, eligio la opcion "' + optionLetter + '" ' + name + '. Te comento, el valor aproximado por la instalacion y configuracion de ' + name + ' basica esta $' + price + ',00 final IVA incluido. El mismo puede variar segun la complejidad del trabajo a realizar o la lejania de la zona, puede ser mas o menos. Por favor, elija alguna de las siguientes respuestas para avanzar:' + PRICE_CLOSING;
+  return 'Genial! Elegiste *' + name + '*. Te comento, el valor aproximado por la instalacion y configuracion de ' + name + ' basica esta *$' + price + ',00* final IVA incluido. El mismo puede variar segun la complejidad del trabajo a realizar o la lejania de la zona, puede ser mas o menos. Por favor, elija alguna de las siguientes respuestas para avanzar:' + PRICE_CLOSING;
 }
 
 // ============ STATE DEFINITIONS ============
 
-const STATES = {
+var STATES = {
   // AZUL - Main menu
   START: {
     msg: MAIN_MENU,
@@ -63,7 +62,7 @@ const STATES = {
 
   // CORPORATIVO (TODO - not yet defined)
   CORPORATIVO: {
-    msg: 'Perfecto, elegiste la opcion "b." Cliente corporativo. Para atender clientes corporativos, nuestro equipo esta disponible de lunes a viernes de 09:00 a 13:00. Por favor, comunicate en ese horario o dejanos tu consulta y te responderan a la brevedad.\n\na. Volver al menu principal',
+    msg: 'Perfecto, elegiste la opcion "b." *Cliente corporativo*. Para atender clientes corporativos, nuestro equipo esta disponible de *lunes a viernes de 09:00 a 13:00*. Por favor, comunicate en ese horario o dejanos tu consulta y te responderan a la brevedad.\n\na. ↩️ Volver al menu principal',
     next: { a: "START" }
   },
 
@@ -91,39 +90,39 @@ const STATES = {
   
   // NARANJA - More than 8 cameras (special)
   CAM_MORE: {
-    msg: 'Perfecto, eligio la opcion "i" Quiero instalar mas de 8 camaras. El valor estimativo puede ser de 1 millon en adelante. La cantidad de camaras exceden a nuestra lista, tu consulta sera derivada a nuestro tecnico para poder dar un mejor asesoramiento.\n\na. Me interesa, seguir la consulta con el tecnico\nb. No me interesa\nc. Volver al menu anterior',
+    msg: 'Perfecto! Elegiste *Mas de 8 camaras* 📹. El valor estimativo puede ser de *$1.000.000 en adelante*. La cantidad de camaras exceden a nuestra lista, tu consulta sera derivada a nuestro tecnico para poder dar un mejor asesoramiento.' + PRICE_CLOSING,
     next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "CAMERAS" }
   },
 
-  // AMARILLO - Equipment prices (alarma, portero, control, multi)
+  // AMARILLO - Equipment prices
   ALARMA: { msg: equipmentPriceMsg("b", "una central de alarma", "169.400"), next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "EQUIPMENT" } },
   PORTERO: { msg: equipmentPriceMsg("c", "un portero visor", "169.400"), next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "EQUIPMENT" } },
   CONTROL: { msg: equipmentPriceMsg("d", "un control de acceso", "169.400"), next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "EQUIPMENT" } },
   
   MULTI: {
-    msg: 'Genial, eligio la opcion "e." Necesito presupuesto por mas de unas de las opciones presentadas. En ese caso voy a tener que derivar tu consulta a nuestro personal. Te comento los horarios de atencion: lunes a sabado de 09:00 a 13:00. Por favor, elija alguna de las siguientes respuestas para avanzar:' + PRICE_CLOSING,
+    msg: 'Genial, elegiste la opcion "e." *Presupuesto por mas de una opcion*. En ese caso voy a tener que derivar tu consulta a nuestro personal. Te comento los horarios de atencion: *lunes a sabado de 09:00 a 13:00*.' + PRICE_CLOSING,
     next: { a: "INTERESTED", b: "NOT_INTERESTED", c: "EQUIPMENT" }
   },
 
   // VERDE CLARO - Service tech
   SERVICE_TECH: {
-    msg: 'Bien, elegiste la opcion "b." Necesito presupuesto por un servicio tecnico. Te comento, nuestro servicio tecnico basico tiene un valor de $169.400,00. El mismo puede variar segun la complejidad del trabajo a realizar, puede ser mas o menos. Por favor, elija alguna de las siguientes respuestas para avanzar:\n\na. Me interesa, seguir el cierre del presupuesto con una persona\nb. No me interesa\nc. Volver al menu anterior',
+    msg: 'Bien, elegiste la opcion "b." *Servicio tecnico* 🔧. Te comento, nuestro servicio tecnico basico tiene un valor de *$169.400,00*. El mismo puede variar segun la complejidad del trabajo a realizar, puede ser mas o menos. Por favor, elija alguna de las siguientes respuestas para avanzar:\n\na. ✅ Me interesa, seguir el cierre del presupuesto con una persona\n\nb. ❌ No me interesa\n\nc. ↩️ Volver al menu anterior',
     next: { a: "INTERESTED_TECH", b: "NOT_INTERESTED_TECH", c: "PARTICULAR" }
   },
 
   // VERDE CLARO - Systecam Sport
   SPORT: {
-    msg: 'Bien, elegiste la opcion "c." Necesito informacion con respecto a Systecam Sport. Te cuento, con Systecam Sport tu club puede ofrecer a los jugadores la posibilidad de ver, descargar y compartir sus partidos desde una app exclusiva, brindando una experiencia unica. Nosotros instalamos todo el sistema, aportamos el equipamiento en comodato y nos ocupamos del soporte y mantenimiento. Es una excelente forma de diferenciarte de la competencia, fidelizar a tus clientes y sumar un nuevo valor a tus canchas. Te gustaria que te envie la propuesta completa?\n\na. Si, enviamela completa\nb. No, gracias\nc. Volver al menu anterior',
+    msg: 'Bien, elegiste la opcion "c." *Systecam Sport* ⚽. Te cuento, con *Systecam Sport* tu club puede ofrecer a los jugadores la posibilidad de ver, descargar y compartir sus partidos desde una *app exclusiva*, brindando una experiencia unica. Nosotros instalamos todo el sistema, aportamos el equipamiento en comodato y nos ocupamos del soporte y mantenimiento. Es una excelente forma de *diferenciarte de la competencia*, fidelizar a tus clientes y sumar un nuevo valor a tus canchas. Te gustaria que te envie la propuesta completa?\n\na. 📄 Si, enviamela completa\n\nb. 👋 No, gracias\n\nc. ↩️ Volver al menu anterior',
     next: { a: "SPORT_PROPOSAL", b: "SPORT_NO_THANKS", c: "PARTICULAR" }
   },
 
   // AMARILLO - Sport proposal (sends PDF)
   SPORT_PROPOSAL: {
-    msg: 'Genial, eligio la opcion "a." Si, enviamela completa. Te envio ahora mismo la propuesta completa de Systecam Sport! Cualquier consulta adicional, nuestro equipo esta disponible de lunes a sabado de 09:00 a 13:00. Te puedo ayudar con algo mas?\n\na. Si, volver al menu principal\nb. No, gracias',
+    msg: 'Genial! Te envio ahora mismo la *propuesta completa de Systecam Sport* 📄. Cualquier consulta adicional, nuestro equipo esta disponible de *lunes a sabado de 09:00 a 13:00*. Te puedo ayudar con algo mas?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias',
     sendPDF: true,
-    pdfUrl: 'https://base44.app/api/apps/6a62196e2adcb0256123773e/files/mp/public/6a62196e2adcb0256123773e/85232d902_61f6a1511_SystecamSport-Propuestacomercial.pdf',
-    pdfName: 'Systecam-Sport-Propuesta-Comercial.pdf',
-    pdfCaption: 'Propuesta Comercial - SYSTECAM Sport',
+    pdfUrl: "https://base44.app/api/apps/6a62196e2adcb0256123773e/files/mp/public/6a62196e2adcb0256123773e/85232d902_61f6a1511_SystecamSport-Propuestacomercial.pdf",
+    pdfName: "Systecam-Sport-Propuesta-Comercial.pdf",
+    pdfCaption: "Propuesta Comercial - SYSTECAM Sport",
     next: { a: "START", b: "END_NO_THANKS" }
   },
 
@@ -136,7 +135,7 @@ const STATES = {
 
   // VERDE CLARO - Talk to person
   TALK_PERSON: {
-    msg: 'Bien, elegiste la opcion "d." Necesito hablar con una persona. Para poder comunicarte con nuestro personal deberas esperar al horario de atencion, que es de lunes a sabados de 09:00 a 13:00. Ni bien lea su consulta le daran una respuesta. Te puedo ayudar con otra consulta?\n\na. Si, volver al menu principal\nb. No, gracias',
+    msg: 'Bien, elegiste la opcion "d." *Hablar con una persona* 👤. Para poder comunicarte con nuestro personal deberas esperar al horario de atencion, que es de *lunes a sabados de 09:00 a 13:00*. Ni bien lea su consulta le daran una respuesta. Te puedo ayudar con otra consulta?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias',
     next: { a: "START", b: "END_NO_THANKS" }
   },
 
@@ -148,7 +147,7 @@ const STATES = {
 
   // BORDO - Interested (from service tech)
   INTERESTED_TECH: {
-    msg: 'Eligio la opcion "a" Me interesa, seguir el cierre del presupuesto con una persona. Para el seguimiento con nuestro personal deberas esperar al horario de atencion, que es de lunes a viernes de 09:00 a 13:00. Ni bien lea su solicitud le daran una respuesta. Te puedo ayudar con otra consulta?\n\na. Si, volver al menu principal\nb. No, gracias',
+    msg: 'Eligio la opcion "a" *Me interesa*, seguir el cierre del presupuesto con una persona. Para el seguimiento con nuestro personal deberas esperar al horario de atencion, que es de *lunes a viernes de 09:00 a 13:00*. Ni bien lea su solicitud le daran una respuesta. Te puedo ayudar con otra consulta?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias',
     next: { a: "CONFIRM_MAIN", b: "END_NO_THANKS" }
   },
 
@@ -168,7 +167,7 @@ const STATES = {
 
   // VERDE OSCURO - Confirm return to main menu
   CONFIRM_MAIN: {
-    msg: 'Eligio la opcion "a" Si, volver al menu principal.\n\n' + MAIN_MENU,
+    msg: 'Eligio la opcion "a" *Si, volver al menu principal* 🏠\n\n' + MAIN_MENU,
     next: { a: "PARTICULAR", b: "CORPORATIVO" }
   },
 
@@ -180,7 +179,7 @@ const STATES = {
   }
 };
 
-// ============ WHATSAPP SENDING ============
+// ============ SEND WHATSAPP TEXT ============
 
 async function sendWhatsApp(to, text) {
   var url = "https://graph.facebook.com/v19.0/" + PHONE_NUMBER_ID + "/messages";
@@ -246,7 +245,7 @@ function processMessage(from, userText) {
       userStates.set(from, "START");
       return { msg: STATES.START.msg };
     }
-    return { msg: 'Gracias por tu mensaje! Si necesitas ayuda, escribi "hola Cesy" para comenzar de nuevo. 😊' };
+    return { msg: 'Gracias por tu mensaje! Si necesitas ayuda, escribi *"hola Cesy"* para comenzar de nuevo. 😊' };
   }
 
   // If no state (first message) or user sends a greeting
@@ -258,7 +257,7 @@ function processMessage(from, userText) {
   var state = STATES[currentState];
   if (!state) {
     userStates.set(from, "START");
-    return STATES.START.msg;
+    return { msg: STATES.START.msg };
   }
 
   // Extract the option letter (a, b, c, d, e, f, g, h, i, j)
@@ -276,7 +275,7 @@ function processMessage(from, userText) {
   }
 
   // If input not recognized, show current state message again with a hint
-  return { msg: 'Por favor, elegi una opcion valida (a, b, c, etc.). 😊\n\n' + state.msg };
+  return { msg: "Por favor, elegi una opcion valida (a, b, c, etc.) 😊\n\n" + state.msg };
 }
 
 // ============ WEBHOOK ENDPOINTS ============

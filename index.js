@@ -576,6 +576,21 @@ async function processMessage(from, userText) {
         return { msg: buildCorpIdentifiedMsg(data.companyName) };
       }
 
+      if (nextState === "CORP_EXISTING") {
+        var lookupResult2 = await lookupClient(from);
+        if (lookupResult2.found) {
+          data.companyName = lookupResult2.short_name;
+          data.legalName = lookupResult2.legal_name;
+          data.contact = lookupResult2.contact;
+          data.clientEmail = lookupResult2.email;
+          userStates.set(from, { state: "CORP_FOUND_CONFIRM", data: data });
+          var confirmMsg2 = 'Entendido, elegiste la opcion "a." *Si, ya soy cliente*. Te identificamos como *' + lookupResult2.contact + ' de la empresa *' + lookupResult2.legal_name + '. Estos datos son correctos?\n\na. ✅ Si, soy yo\n\nb. ❌ No, no lo soy\n\nc. ↩️ Volver al menu principal\n\nd. 👋 Finalizar conversacion';
+          return { msg: confirmMsg2 };
+        } else {
+          userStates.set(from, { state: "CORP_EXISTING_FALLBACK", data: data });
+          return { msg: 'Entendido, elegiste la opcion "a." *Si, ya soy cliente*. No encontramos tu numero en nuestra base de datos. Por favor identifiquese con el *nombre de la empresa* o su *CUIT*' };
+        }
+      }
       var next = STATES[nextState];
       if (next) {
         var resultObj = { msg: next.msg, sendPDF: next.sendPDF || false, pdfUrl: next.pdfUrl, pdfName: next.pdfName, pdfCaption: next.pdfCaption };

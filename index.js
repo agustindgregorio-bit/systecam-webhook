@@ -6,8 +6,9 @@ const VERIFY_TOKEN = "systecam_cesy_2026";
 const META_TOKEN = process.env.META_WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = "1267250503134581";
 
-// ============ CALENDAR API ============
+// ============ API ENDPOINTS ============
 var CALENDAR_API = "https://cesy.base44.app/api/apps/6a62196e2adcb0256123773e/functions/calendarManager";
+var LOOKUP_API = "https://systecam-admin-flow.base44.app/api/apps/6a68d0fd479a5dbdc16652fb/functions/lookupClient";
 
 // ============ STATE MACHINE ============
 var userStates = new Map();
@@ -48,7 +49,7 @@ function buildCorpIdentifiedMsg(companyName) {
   return 'Genial, gracias!! Te has identificado como *"' + companyName + '"*. Cual es el motivo de tu mensaje?\n\na. 📅 Necesito agendar una fecha para un trabajo\n\nb. 📋 Necesito agendar una fecha para realizar un relevamiento\n\nc. 👤 Necesito comunicarme con el tecnico para hablar sobre un proyecto\n\nd. 🛰️ Necesito informacion con respecto al servicio de monitoreo de estado\n\ne. ↩️ Volver al menu anterior\n\nf. 👋 Finalizar conversacion';
 }
 
-// ============ CALENDAR API CALLS ============
+// ============ API CALLS ============
 
 async function getAvailability(eventType, startDateISO) {
   try {
@@ -80,6 +81,20 @@ async function createCalendarEvent(startISO, endISO, title, description) {
   }
 }
 
+async function lookupClient(phone) {
+  try {
+    var res = await fetch(LOOKUP_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: phone })
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Error lookupClient:", err.message);
+    return { found: false, error: err.message };
+  }
+}
+
 // ============ BUILD AVAILABILITY MESSAGE ============
 
 function buildAvailabilityMsg(slots, eventType) {
@@ -99,7 +114,6 @@ function buildAvailabilityMsg(slots, eventType) {
     msg += letters[i] + '. 📅 ' + capLabel + ' ' + s.dayNum + '/' + s.monthName + '\n\n';
   }
   
-  // Add navigation options
   var nextIdx = slots.length < 8 ? slots.length : 8;
   msg += letters[nextIdx] + '. ➡️ Ver siguientes fechas\n\n';
   nextIdx++;
@@ -150,8 +164,20 @@ var STATES = {
     next: { a: "CORP_EXISTING", b: "CORP_NEW", c: "START", d: "END_FINALIZAR" }
   },
 
+  // NEW: Dynamic lookup state - calls lookupClient API with the phone number
   CORP_EXISTING: {
-    msg: 'Entendido, elegiste la opcion "a." *Si, ya soy cliente*. Por favor identifiquese con el *nombre de la empresa* o su *CUIT*',
+    isLookup: true
+  },
+
+  // NEW: Client found - ask for confirmation
+  CORP_FOUND_CONFIRM: {
+    msg: "DYNAMIC",
+    next: { a: "CORP_IDENTIFIED", b: "CORP_EXISTING_FALLBACK", c: "START", d: "END_FINALIZAR" }
+  },
+
+  // NEW: Client not found or said "no, no lo soy" - fall back to manual identification
+  CORP_EXISTING_FALLBACK: {
+    msg: 'Entendido. Por favor identifiquese con el *nombre de la empresa* o su *CUIT*',
     freeText: true,
     next: "CORP_IDENTIFIED"
   },
@@ -407,11 +433,28 @@ async function processMessage(from, userText) {
     return { msg: buildCorpIdentifiedMsg(companyName) };
   }
 
+  // LOOKUP state - calls lookupClient API with the phone number
+  if (state.isLookup) {
+    var lookupResult = await lookupClient(from);
+    if (lookupResult.found) {
+      // Client found - store data and go to confirmation
+      data.companyName = lookupResult.short_name;
+      data.legalName = lookupResult.legal_name;
+      data.contact = lookupResult.contact;
+      userStates.set(from, { state: "CORP_FOUND_CONFIRM", data: data });
+      var confirmMsg = 'Entendido, elegiste la opcion "a." *Si, ya soy cliente*. Te identificamos como *' + lookupResult.contact + '* de la empresa *' + lookupResult.legal_name + '*. Estos datos son correctos?\n\na. ✅ Si, soy yo\n\nb. ❌ No, no lo soy\n\nc. ↩️ Volver al menu principal\n\nd. 👋 Finalizar conversacion';
+      return { msg: confirmMsg };
+    } else {
+      // Client not found - fall back to manual identification
+      userStates.set(from, { state: "CORP_EXISTING_FALLBACK", data: data });
+      return { msg: 'Entendido, elegiste la opcion "a." *Si, ya soy cliente*. No encontramos tu numero en nuestra base de datos. Por favor identifiquese con el *nombre de la empresa* o su *CUIT*' };
+    }
+  }
+
   // DYNAMIC states (availability - needs API call)
   if (state.isDynamic) {
     var eventType = state.eventType;
     
-    // Check if user is selecting from already-shown slots
     if (data.slots && data.slots.length > 0) {
       var letters = "abcdefghijklmnopqrstuvwxyz";
       var numSlots = data.slots.length;
@@ -421,7 +464,6 @@ async function processMessage(from, userText) {
       var volverLetter = letters[baseIdx + 2];
       var finalizarLetter = letters[baseIdx + 3];
       
-      // Check for "ver siguientes fechas"
       if (text === verSiguientesLetter) {
         var lastSlot = data.slots[data.slots.length - 1];
         var newStartDate = new Date(lastSlot.startISO);
@@ -431,32 +473,27 @@ async function processMessage(from, userText) {
         if (moreSlots.available && moreSlots.available.length > 0) {
           data.slots = moreSlots.available;
           userStates.set(from, { state: currentState, data: data });
-          var moreMsg = buildAvailabilityMsg(data.slots, eventType);
-          return { msg: moreMsg };
+          return { msg: buildAvailabilityMsg(data.slots, eventType) };
         } else {
           return { msg: "No hay mas fechas disponibles en las proximas dos semanas. Por favor comunicate con nuestro personal de *lunes a sabado de 09:00 a 13:00*. 📞\n\na. ↩️ Volver al menu anterior\n\nb. 👋 Finalizar conversacion" };
         }
       }
       
-      // Check for weekend option
       if (text === weekendLetter) {
         userStates.set(from, { state: "CORP_WEEKEND", data: { companyName: data.companyName } });
         return { msg: STATES.CORP_WEEKEND.msg };
       }
       
-      // Check for "volver al menu anterior"
       if (text === volverLetter) {
         userStates.set(from, { state: "CORP_IDENTIFIED", data: { companyName: data.companyName } });
         return { msg: buildCorpIdentifiedMsg(data.companyName) };
       }
       
-      // Check for "finalizar conversacion"
       if (text === finalizarLetter) {
         userStates.set(from, { state: "END_FINALIZAR", data: {} });
         return { msg: FINALIZAR_MSG };
       }
       
-      // Parse multi-day selection (e.g. "a,b,c" or "a" or "b,f")
       var selectedIndices = parseSelection(text, numSlots);
       
       if (selectedIndices.length > 0) {
@@ -464,7 +501,6 @@ async function processMessage(from, userText) {
         var title = typeWord + " - " + (data.companyName || "Cliente corporativo");
         var desc = typeWord + " solicitado por " + (data.companyName || "cliente corporativo") + " desde WhatsApp. Telefono: " + from;
         
-        // Create events for each selected day
         var bookedDates = [];
         var errors = [];
         
@@ -490,12 +526,9 @@ async function processMessage(from, userText) {
         }
       }
       
-      // Invalid option - show slots again
-      var retryMsg = "Por favor, elegi una opcion valida. Podes elegir uno o mas dias separados por coma. 😊\n\n" + buildAvailabilityMsg(data.slots, eventType);
-      return { msg: retryMsg };
+      return { msg: "Por favor, elegi una opcion valida. Podes elegir uno o mas dias separados por coma. 😊\n\n" + buildAvailabilityMsg(data.slots, eventType) };
     }
     
-    // No slots loaded yet - fetch from API
     var availResult = await getAvailability(eventType, null);
     data.slots = availResult.available || [];
     data.eventType = eventType;
@@ -505,8 +538,7 @@ async function processMessage(from, userText) {
       return { msg: "No tengo fechas disponibles en este momento. Por favor comunicate con nuestro personal de *lunes a sabado de 09:00 a 13:00* y te ayudaran a coordinar. 📞\n\na. ↩️ Volver al menu anterior\n\nb. 👋 Finalizar conversacion" };
     }
     
-    var availMsg = buildAvailabilityMsg(data.slots, eventType);
-    return { msg: availMsg };
+    return { msg: buildAvailabilityMsg(data.slots, eventType) };
   }
 
   // Normal option handling (A-Z)
@@ -517,8 +549,6 @@ async function processMessage(from, userText) {
     if (nextState) {
       userStates.set(from, { state: nextState, data: data });
 
-      // Special case: transitioning into CORP_IDENTIFIED needs its message
-      // rebuilt dynamically with the stored company name (its msg is "DYNAMIC")
       if (nextState === "CORP_IDENTIFIED") {
         return { msg: buildCorpIdentifiedMsg(data.companyName) };
       }
@@ -527,7 +557,6 @@ async function processMessage(from, userText) {
       if (next) {
         var resultObj = { msg: next.msg, sendPDF: next.sendPDF || false, pdfUrl: next.pdfUrl, pdfName: next.pdfName, pdfCaption: next.pdfCaption };
         
-        // If entering a dynamic state, fetch availability
         if (next.isDynamic) {
           var eventType2 = next.eventType;
           var availResult2 = await getAvailability(eventType2, null);
@@ -539,8 +568,7 @@ async function processMessage(from, userText) {
             return { msg: "No tengo fechas disponibles en este momento. Por favor comunicate con nuestro personal de *lunes a sabado de 09:00 a 13:00* y te ayudaran a coordinar. 📞\n\na. ↩️ Volver al menu anterior\n\nb. 👋 Finalizar conversacion" };
           }
           
-          var availMsg2 = buildAvailabilityMsg(data.slots, eventType2);
-          return { msg: availMsg2 };
+          return { msg: buildAvailabilityMsg(data.slots, eventType2) };
         }
         
         return resultObj;
@@ -548,7 +576,6 @@ async function processMessage(from, userText) {
     }
   }
 
-  // Invalid input - show current state message again
   var hintMsg = "Por favor, elegi una opcion valida (a, b, c, etc.) 😊\n\n" + state.msg;
   return { msg: hintMsg };
 }

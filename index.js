@@ -47,7 +47,7 @@ function equipmentPriceMsg(optionLetter, name, price) {
 
 // Builds the "motivo de tu mensaje" menu shown to corporate clients once identified
 function buildCorpIdentifiedMsg(companyName) {
-  return 'Genial, gracias!! Te has identificado como *"' + companyName + '"*. Cual es el motivo de tu mensaje?\n\na. 📅 Necesito agendar una fecha para un trabajo\n\nb. 📋 Necesito agendar una fecha para realizar un relevamiento\n\nc. 👤 Necesito comunicarme con el tecnico para hablar sobre un proyecto\n\nd. 🛰️ Necesito informacion con respecto al servicio de monitoreo de estado\n\ne. ↩️ Volver al menu anterior\n\nf. 👋 Finalizar conversacion';
+  return 'Genial, gracias!! Te has identificado como *"' + companyName + '"*. Cual es el motivo de tu mensaje?\n\na. 📅 Necesito agendar una fecha para un trabajo\n\nb. 📋 Necesito agendar una fecha para realizar un relevamiento\n\nc. 👤 Necesito comunicarme con el tecnico para hablar sobre un proyecto\n\nd. 🛰️ Necesito informacion con respecto al servicio de *Monitoreo de estado*\n\ne. ↩️ Volver al menu anterior\n\nf. 👋 Finalizar conversacion';
 }
 
 // ============ API CALLS ============

@@ -43,6 +43,11 @@ function equipmentPriceMsg(optionLetter, name, price) {
   return 'Genial! Elegiste *' + name + '*. Te comento, el valor aproximado por la instalacion y configuracion de ' + name + ' basica esta *$' + price + ',00* final IVA incluido. El mismo puede variar segun la complejidad del trabajo a realizar o la lejania de la zona, puede ser mas o menos. Por favor, elija alguna de las siguientes respuestas para avanzar:\n\na. ✅ Me interesa, seguir el cierre del presupuesto con una persona\n\nb. ❌ No me interesa' + PRICE_CLOSING;
 }
 
+// Builds the "motivo de tu mensaje" menu shown to corporate clients once identified
+function buildCorpIdentifiedMsg(companyName) {
+  return 'Genial, gracias!! Te has identificado como *"' + companyName + '"*. Cual es el motivo de tu mensaje?\n\na. 📅 Necesito agendar una fecha para un trabajo\n\nb. 📋 Necesito agendar una fecha para realizar un relevamiento\n\nc. 👤 Necesito comunicarme con el tecnico para hablar sobre un proyecto\n\nd. 🛰️ Necesito informacion con respecto al servicio de monitoreo de estado\n\ne. ↩️ Volver al menu anterior\n\nf. 👋 Finalizar conversacion';
+}
+
 // ============ CALENDAR API CALLS ============
 
 async function getAvailability(eventType, startDateISO) {
@@ -159,7 +164,7 @@ var STATES = {
 
   CORP_IDENTIFIED: {
     msg: "DYNAMIC",
-    next: { a: "CORP_SCHEDULE_TRABAJO", b: "CORP_SCHEDULE_RELEVAMIENTO", c: "CORP_TECNICO", d: "CORPORATIVO", e: "END_FINALIZAR" }
+    next: { a: "CORP_SCHEDULE_TRABAJO", b: "CORP_SCHEDULE_RELEVAMIENTO", c: "CORP_TECNICO", d: "CORP_MONITOREO", e: "CORPORATIVO", f: "END_FINALIZAR" }
   },
 
   CORP_SCHEDULE_TRABAJO: {
@@ -175,6 +180,26 @@ var STATES = {
   CORP_TECNICO: {
     msg: 'Bien, elegiste la opcion "c." *Comunicarme con el tecnico para hablar sobre un proyecto*. Perfecto!! Te dejo el contacto de nuestro tecnico *Gregorio Agustin* (1167684802). Igualmente le voy a dejar un recordatorio a las 18:00 para que se comunique con usted.\n\na. ↩️ Volver al menu anterior\n\nb. 👋 Finalizar conversacion',
     next: { a: "CORP_IDENTIFIED", b: "END_FINALIZAR" }
+  },
+
+  CORP_MONITOREO: {
+    msg: 'Bien, elegiste la opcion "d." *Necesito informacion con respecto al servicio de monitoreo de estado*. Te cuento, nuestro servicio de *Monitoreo de Estado* supervisa las 24 horas que tus camaras, DVR/NVR y demas dispositivos funcionen correctamente. Si detectamos una falla (como perdida de video, error de disco o problemas de red), te avisamos de inmediato para que puedas solucionarla antes de que afecte la seguridad. Asi tenes la tranquilidad de que, cuando necesites una grabacion, tu sistema estara funcionando como corresponde. Te gustaria que te envie la propuesta completa?\n\na. 📄 Si, enviame la propuesta completa\n\nb. 👋 No, gracias\n\nc. ↩️ Volver al menu anterior',
+    next: { a: "CORP_MONITOREO_PROPOSAL", b: "CORP_MONITOREO_NO_THANKS", c: "CORP_IDENTIFIED" }
+  },
+
+  CORP_MONITOREO_PROPOSAL: {
+    msg: 'Genial! Te envio ahora mismo la *propuesta completa del servicio de Monitoreo de Estado* 📄. Cualquier consulta adicional, nuestro equipo esta disponible de *lunes a sabado de 09:00 a 13:00*. Te puedo ayudar con algo mas?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias',
+    sendPDF: true,
+    pdfUrl: "https://media.base44.com/files/public/6a62196e2adcb0256123773e/da696fa76_Monitoreodeestado.pdf",
+    pdfName: "Systecam-Monitoreo-de-Estado.pdf",
+    pdfCaption: "Propuesta - Monitoreo de Estado SYSTECAM",
+    next: { a: "START", b: "END_FINALIZAR" }
+  },
+
+  CORP_MONITOREO_NO_THANKS: {
+    msg: NO_THANKS_CLOSE,
+    next: {},
+    isEnd: true
   },
 
   EQUIPMENT: {
@@ -379,15 +404,7 @@ async function processMessage(from, userText) {
     data.companyName = companyName;
     var nextStateName = state.next;
     userStates.set(from, { state: nextStateName, data: data });
-    var idMsg = 'Genial, gracias!! Te has identificado como *"' + companyName + '"*. Cual es el motivo de tu mensaje?\n\na. 📅 Necesito agendar una fecha para un trabajo\n\nb. 📋 Necesito agendar una fecha para realizar un relevamiento\n\nc. 👤 Necesito comunicarme con el tecnico para hablar sobre un proyecto\n\nd. ↩️ Volver al menu anterior\n\ne. 👋 Finalizar conversacion';
-    return { msg: idMsg };
-  }
-
-  // Handle CORP_IDENTIFIED with dynamic message (when returning from another state)
-  if (currentState === "CORP_IDENTIFIED" && state.msg === "DYNAMIC") {
-    // The message was already shown when transitioning from freeText.
-    // If we get here, the user is in CORP_IDENTIFIED and sent an option.
-    // Fall through to normal option handling.
+    return { msg: buildCorpIdentifiedMsg(companyName) };
   }
 
   // DYNAMIC states (availability - needs API call)
@@ -430,8 +447,7 @@ async function processMessage(from, userText) {
       // Check for "volver al menu anterior"
       if (text === volverLetter) {
         userStates.set(from, { state: "CORP_IDENTIFIED", data: { companyName: data.companyName } });
-        var backMsg = 'Genial, gracias!! Te has identificado como *"' + data.companyName + '"*. Cual es el motivo de tu mensaje?\n\na. 📅 Necesito agendar una fecha para un trabajo\n\nb. 📋 Necesito agendar una fecha para realizar un relevamiento\n\nc. 👤 Necesito comunicarme con el tecnico para hablar sobre un proyecto\n\nd. ↩️ Volver al menu anterior\n\ne. 👋 Finalizar conversacion';
-        return { msg: backMsg };
+        return { msg: buildCorpIdentifiedMsg(data.companyName) };
       }
       
       // Check for "finalizar conversacion"
@@ -500,6 +516,13 @@ async function processMessage(from, userText) {
     var nextState = state.next[letter];
     if (nextState) {
       userStates.set(from, { state: nextState, data: data });
+
+      // Special case: transitioning into CORP_IDENTIFIED needs its message
+      // rebuilt dynamically with the stored company name (its msg is "DYNAMIC")
+      if (nextState === "CORP_IDENTIFIED") {
+        return { msg: buildCorpIdentifiedMsg(data.companyName) };
+      }
+
       var next = STATES[nextState];
       if (next) {
         var resultObj = { msg: next.msg, sendPDF: next.sendPDF || false, pdfUrl: next.pdfUrl, pdfName: next.pdfName, pdfCaption: next.pdfCaption };

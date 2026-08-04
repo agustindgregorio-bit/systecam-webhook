@@ -9,6 +9,7 @@ const PHONE_NUMBER_ID = "1267250503134581";
 // ============ API ENDPOINTS ============
 var CALENDAR_API = "https://cesy.base44.app/api/apps/6a62196e2adcb0256123773e/functions/calendarManager";
 var LOOKUP_API = "https://systecam-admin-flow.base44.app/api/apps/6a68d0fd479a5dbdc16652fb/functions/lookupClient";
+var EMAIL_API = "https://cesy.base44.app/api/apps/6a62196e2adcb0256123773e/functions/sendBookingEmail";
 
 // ============ STATE MACHINE ============
 var userStates = new Map();
@@ -77,6 +78,20 @@ async function createCalendarEvent(startISO, endISO, title, description) {
     return await res.json();
   } catch (err) {
     console.error("Error createEvent:", err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+async function sendBookingEmail(clientEmail, companyName, serviceType, bookedDates) {
+  try {
+    var res = await fetch(EMAIL_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientEmail: clientEmail, companyName: companyName, serviceType: serviceType, bookedDates: bookedDates })
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Error sendBookingEmail:", err.message);
     return { success: false, error: err.message };
   }
 }
@@ -441,6 +456,7 @@ async function processMessage(from, userText) {
       data.companyName = lookupResult.short_name;
       data.legalName = lookupResult.legal_name;
       data.contact = lookupResult.contact;
+      data.clientEmail = lookupResult.email;
       userStates.set(from, { state: "CORP_FOUND_CONFIRM", data: data });
       var confirmMsg = 'Entendido, elegiste la opcion "a." *Si, ya soy cliente*. Te identificamos como *' + lookupResult.contact + '* de la empresa *' + lookupResult.legal_name + '*. Estos datos son correctos?\n\na. ✅ Si, soy yo\n\nb. ❌ No, no lo soy\n\nc. ↩️ Volver al menu principal\n\nd. 👋 Finalizar conversacion';
       return { msg: confirmMsg };
@@ -469,7 +485,7 @@ async function processMessage(from, userText) {
         var newStartDate = new Date(lastSlot.startISO);
         newStartDate.setDate(newStartDate.getDate() + 1);
         
-        var moreSlots = await getAvailability(eventType, newStartDate.toISOString());
+        var moreSlots = await getAvailability(eventType, newStartDate.toISOString().split("T")[0]);
         if (moreSlots.available && moreSlots.available.length > 0) {
           data.slots = moreSlots.available;
           userStates.set(from, { state: currentState, data: data });
@@ -516,10 +532,17 @@ async function processMessage(from, userText) {
         
         if (bookedDates.length > 0) {
           userStates.set(from, { state: "CORP_BOOKED", data: {} });
+          // Send confirmation email
+          var typeWord2 = eventType === "trabajo" ? "Trabajo" : "Relevamiento";
+          var emailDates = bookedDates.join(", ");
+          var emailTo = data.clientEmail || "agustin.d.gregorio@gmail.com";
+          try {
+            await sendBookingEmail(emailTo, data.companyName || "Cliente corporativo", typeWord2, emailDates);
+          } catch (e) { console.error("Email send failed:", e.message); }
           var dayWord = bookedDates.length === 1 ? "el" : "los";
           var dateList = bookedDates.join(", ");
           var extraInfo = bookedDates.length === 1 ? "" : " (" + bookedDates.length + " dias)";
-          var bookedMsg = 'Listo!! Quedo agendado para ' + dayWord + ' *' + dateList + '*' + extraInfo + '. Te enviamos la invitacion al calendario. Si necesitas modificar algo, nuestro personal lo atendera de *lunes a sabado de 09:00 a 13:00*. 📅\n\nTe puedo ayudar con otra consulta?\n\na. 🏠 Volver al menu principal\n\nb. 👋 Finalizar conversacion';
+          var bookedMsg = 'Listo!! Quedo agendado para ' + dayWord + ' *' + dateList + '*' + extraInfo + '. Te enviamos la invitacion al calendario y un email de confirmacion. Si necesitas modificar algo, nuestro personal lo atendera de *lunes a sabado de 09:00 a 13:00*. 📅\n\nTe puedo ayudar con otra consulta?\n\na. 🏠 Volver al menu principal\n\nb. 👋 Finalizar conversacion';
           return { msg: bookedMsg };
         } else {
           return { msg: "Hubo un problema al agendar. Por favor comunicate con nuestro personal de *lunes a sabado de 09:00 a 13:00*. 📞\n\na. ↩️ Volver al menu anterior\n\nb. 👋 Finalizar conversacion" };
@@ -529,7 +552,7 @@ async function processMessage(from, userText) {
       return { msg: "Por favor, elegi una opcion valida. Podes elegir uno o mas dias separados por coma. 😊\n\n" + buildAvailabilityMsg(data.slots, eventType) };
     }
     
-    var availResult = await getAvailability(eventType, null);
+    var availResult = await getAvailability(eventType, new Date().toISOString().split("T")[0]);
     data.slots = availResult.available || [];
     data.eventType = eventType;
     userStates.set(from, { state: currentState, data: data });
@@ -559,7 +582,7 @@ async function processMessage(from, userText) {
         
         if (next.isDynamic) {
           var eventType2 = next.eventType;
-          var availResult2 = await getAvailability(eventType2, null);
+          var availResult2 = await getAvailability(eventType2, new Date().toISOString().split("T")[0]);
           data.slots = availResult2.available || [];
           data.eventType = eventType2;
           userStates.set(from, { state: nextState, data: data });

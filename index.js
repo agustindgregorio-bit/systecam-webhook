@@ -584,7 +584,7 @@ async function processMessage(from, userText) {
           data.contact = lookupResult2.contact;
           data.clientEmail = lookupResult2.email;
           userStates.set(from, { state: "CORP_FOUND_CONFIRM", data: data });
-          var confirmMsg2 = 'Entendido, elegiste la opcion "a." *Si, ya soy cliente*. Te identificamos como *' + lookupResult2.contact + ' de la empresa *' + lookupResult2.legal_name + '. Estos datos son correctos?\n\na. ✅ Si, soy yo\n\nb. ❌ No, no lo soy\n\nc. ↩️ Volver al menu principal\n\nd. 👋 Finalizar conversacion';
+          var confirmMsg2 = 'Entendido, elegiste la opcion "a." *Si, ya soy cliente*. Te identificamos como *' + lookupResult2.contact + '* de la empresa *' + lookupResult2.legal_name + '*. Estos datos son correctos?\n\na. ✅ Si, soy yo\n\nb. ❌ No, no lo soy\n\nc. ↩️ Volver al menu principal\n\nd. 👋 Finalizar conversacion';
           return { msg: confirmMsg2 };
         } else {
           userStates.set(from, { state: "CORP_EXISTING_FALLBACK", data: data });

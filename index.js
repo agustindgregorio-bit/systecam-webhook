@@ -10,7 +10,8 @@ const PHONE_NUMBER_ID = "1267250503134581";
 var CALENDAR_API = "https://cesy.base44.app/api/apps/6a62196e2adcb0256123773e/functions/calendarManager";
 var LOOKUP_API = "https://systecam-admin-flow.base44.app/api/apps/6a68d0fd479a5dbdc16652fb/functions/lookupClient";
 var EMAIL_API = "https://cesy.base44.app/api/apps/6a62196e2adcb0256123773e/functions/sendBookingEmail";
-var LOG_API = "https://cesy.base44.app/api/apps/6a62196e2adcb0256123773e/functions/logConversation";
+var AGENT_API = "https://app.base44.com/api/agents/6a62196e2adcb0256123773e/conversations/6a621972c2ba4e8b611c5197/messages";
+var BASE44_KEY = process.env.BASE44_API_KEY;
 
 // ============ STATE MACHINE ============
 var userStates = new Map();
@@ -97,21 +98,17 @@ async function sendBookingEmail(clientEmail, companyName, serviceType, bookedDat
   }
 }
 
-async function logConversation(phone, userText, botResponse, state, clientName) {
+function logConversation(phone, userText, botResponse, state, clientName) {
   try {
-    var resp = await fetch(LOG_API, {
+    var logMsg = "LOG_CONVERSATION|" + phone + "|" + (userText || "") + "|" + (botResponse || "") + "|" + (state || "") + "|" + (clientName || "");
+    fetch(AGENT_API, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        telefono: phone,
-        mensaje_cliente: userText,
-        respuesta_bot: botResponse || "",
-        estado: state || "",
-        cliente_identificado: clientName || ""
-      })
+      headers: { "Content-Type": "application/json", "api_key": BASE44_KEY },
+      body: JSON.stringify({ content: logMsg })
+    }).catch(function(err) {
+      console.error("Error logConversation fetch:", err.message);
     });
-    var data = await resp.json();
-    console.log("Conversation logged:", data.success);
+    console.log("Log notification sent to agent");
   } catch (err) {
     console.error("Error logConversation:", err.message);
   }
@@ -685,7 +682,7 @@ app.post("/webhook", async function(req, res) {
     var currentState = userStates.get(from);
     var stateName = currentState ? currentState.state : '';
     var clientName = currentState && currentState.data ? (currentState.data.companyName || currentState.data.contact || '') : '';
-    await logConversation(from, userText, result.msg || '', stateName, clientName);
+    logConversation(from, userText, result.msg || '', stateName, clientName);
     console.log("Respuesta enviada a " + from);
   } catch (err) {
     console.error("Error: " + err.message);

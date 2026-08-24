@@ -10,6 +10,7 @@ const PHONE_NUMBER_ID = "1267250503134581";
 var CALENDAR_API = "https://cesy.base44.app/api/apps/6a62196e2adcb0256123773e/functions/calendarManager";
 var LOOKUP_API = "https://systecam-admin-flow.base44.app/api/apps/6a68d0fd479a5dbdc16652fb/functions/lookupClient";
 var EMAIL_API = "https://cesy.base44.app/api/apps/6a62196e2adcb0256123773e/functions/sendBookingEmail";
+var LOG_API = "https://cesy.base44.app/api/apps/6a62196e2adcb0256123773e/functions/logConversation";
 
 // ============ STATE MACHINE ============
 var userStates = new Map();
@@ -96,6 +97,25 @@ async function sendBookingEmail(clientEmail, companyName, serviceType, bookedDat
   }
 }
 
+async function logConversation(phone, userText, botResponse, state, clientName) {
+  try {
+    var resp = await fetch(LOG_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        telefono: phone,
+        mensaje_cliente: userText,
+        respuesta_bot: botResponse || "",
+        estado: state || "",
+        cliente_identificado: clientName || ""
+      })
+    });
+    var data = await resp.json();
+    console.log("Conversation logged:", data.success);
+  } catch (err) {
+    console.error("Error logConversation:", err.message);
+  }
+}
 async function lookupClient(phone) {
   try {
     var res = await fetch(LOOKUP_API, {
@@ -661,6 +681,11 @@ app.post("/webhook", async function(req, res) {
     if (result && result.sendPDF) {
       await sendWhatsAppDocument(from, result.pdfUrl, result.pdfName, result.pdfCaption);
     }
+    // Log the conversation for Karen notifications
+    var currentState = userStates.get(from);
+    var stateName = currentState ? currentState.state : '';
+    var clientName = currentState && currentState.data ? (currentState.data.companyName || currentState.data.contact || '') : '';
+    await logConversation(from, userText, result.msg || '', stateName, clientName);
     console.log("Respuesta enviada a " + from);
   } catch (err) {
     console.error("Error: " + err.message);

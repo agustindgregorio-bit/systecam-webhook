@@ -675,6 +675,23 @@ app.post("/webhook", async function(req, res) {
     }
     if (!userText) return;
     console.log("Mensaje de " + from + ": " + userText);
+
+    // Check if this is a group message (Karen's number or group ID format)
+    var isGroupMsg = from.indexOf("@g.us") !== -1 || (value.contacts && value.contacts[0] && value.contacts[0].wa_id && value.contacts[0].wa_id.indexOf("@g.us") !== -1);
+    var isKaren = from === "5491134298519";
+    var hasContext = message.context && (message.context.group_id || message.context.from);
+    if (isKaren || isGroupMsg || hasContext) {
+      // Forward full payload to agent for group message analysis
+      var debugMsg = "GROUP_DEBUG|" + JSON.stringify({ from: from, msgType: msgType, userText: userText, context: message.context || null, value_contacts: value.contacts || null, value_metadata: value.metadata || null, raw_message: JSON.stringify(message).substring(0, 500) });
+      fetch(AGENT_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "api_key": BASE44_KEY },
+        body: JSON.stringify({ content: debugMsg })
+      }).catch(function(err) { console.error("Error group debug fetch:", err.message); });
+      console.log("Group debug sent to agent");
+      // For now, still process the message normally
+    }
+
     var result = await processMessage(from, userText);
     if (result && result.msg) {
       await sendWhatsApp(from, result.msg);

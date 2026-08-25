@@ -123,6 +123,56 @@ var KAREN_PHONE = "5491134298519";
 var AGUSTIN_PHONE = "5491159841434";
 var STAFF_PHONES = [KAREN_PHONE, AGUSTIN_PHONE];
 
+// In-memory log of recent client interactions for staff reports
+var recentInteractions = [];
+var MAX_INTERACTIONS = 50;
+
+function addInteraction(phone, userText, botResponse, state) {
+  recentInteractions.push({
+    phone: phone,
+    message: userText,
+    response: botResponse,
+    state: state,
+    timestamp: new Date().toISOString()
+  });
+  if (recentInteractions.length > MAX_INTERACTIONS) {
+    recentInteractions.shift();
+  }
+}
+
+function buildStaffReport() {
+  if (recentInteractions.length === 0) {
+    return "Hola Karen! 👋\n\nPor ahora no hubo consultas de clientes recientes. Te voy a avisar apenas llegue una. 🤗";
+  }
+  var report = "Hola Karen! 👋\n\n";
+  report += "*📊 Reporte de consultas recientes:*\n";
+  report += "Total: " + recentInteractions.length + " interacciones\n\n";
+  
+  // Group by phone number
+  var byPhone = {};
+  for (var i = 0; i < recentInteractions.length; i++) {
+    var i_phone = recentInteractions[i].phone;
+    if (!byPhone[i_phone]) byPhone[i_phone] = [];
+    byPhone[i_phone].push(recentInteractions[i]);
+  }
+  
+  var phoneCount = Object.keys(byPhone).length;
+  report += "Clientes unicos: " + phoneCount + "\n\n";
+  
+  for (var p in byPhone) {
+    var interactions = byPhone[p];
+    var last = interactions[interactions.length - 1];
+    report += "*📞 " + p + "*\n";
+    report += "Interacciones: " + interactions.length + "\n";
+    report += "Ultimo mensaje: " + (interactions[interactions.length - 1].message || "").substring(0, 80) + "\n";
+    report += "Estado actual: " + (last.state || "START") + "\n";
+    report += "Hora: " + new Date(last.timestamp).toLocaleString("es-AR", {timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit"}) + "hs\n\n";
+  }
+  
+  report += "_Cada nueva consulta te va a llegar automaticamente._";
+  return report;
+}
+
 function sendKarenNotification(phone, userText, botResponse, state, clientName) {
   try {
     var name = clientName || "No identificado";
@@ -699,10 +749,13 @@ app.post("/webhook", async function(req, res) {
     if (!userText) return;
     console.log("Mensaje de " + from + ": " + userText);
 
-    // Skip menu for staff members - they get a simple acknowledgment
+    // Staff members get a report of recent client interactions
     if (STAFF_PHONES.indexOf(from) !== -1) {
-      console.log("Staff message detected from " + from);
-      sendWhatsApp(from, "Hola! Soy Cesy, el bot de Systecam. Tu mensaje fue recibido. Para consultas sobre atencion de clientes, escribi a Agustin. 🤗").catch(function(){});
+      console.log("Staff message detected from " + from + " - sending report");
+      var report = buildStaffReport();
+      sendWhatsApp(from, report).catch(function(err) {
+        console.error("Error sending staff report:", err.message);
+      });
       return;
     }
 
@@ -719,6 +772,7 @@ app.post("/webhook", async function(req, res) {
     var clientName = currentState && currentState.data ? (currentState.data.companyName || currentState.data.contact || '') : '';
     logConversation(from, userText, result.msg || '', stateName, clientName);
     sendKarenNotification(from, userText, result.msg || '', stateName, clientName);
+    addInteraction(from, userText, result.msg || '', stateName);
     console.log("Respuesta enviada a " + from);
   } catch (err) {
     console.error("Error: " + err.message);

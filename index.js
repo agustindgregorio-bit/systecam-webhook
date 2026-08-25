@@ -86,12 +86,16 @@ async function createCalendarEvent(startISO, endISO, title, description) {
 
 async function sendBookingEmail(clientEmail, companyName, serviceType, bookedDates) {
   try {
-    var res = await fetch(EMAIL_API, {
+    var emailMsg = "SEND_EMAIL|" + (clientEmail || "") + "|" + (companyName || "") + "|" + (serviceType || "") + "|" + (bookedDates || "");
+    fetch(AGENT_API, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientEmail: clientEmail, companyName: companyName, serviceType: serviceType, bookedDates: bookedDates })
+      headers: { "Content-Type": "application/json", "api_key": BASE44_KEY },
+      body: JSON.stringify({ content: emailMsg })
+    }).catch(function(err) {
+      console.error("Error sendBookingEmail fetch:", err.message);
     });
-    return await res.json();
+    console.log("Email request sent to agent");
+    return { success: true, message: "Email request sent to agent" };
   } catch (err) {
     console.error("Error sendBookingEmail:", err.message);
     return { success: false, error: err.message };

@@ -20,7 +20,7 @@ var userStates = new Map();
 
 var MAIN_MENU = "Hola! Como estas? Soy *Cesy*, la asistente virtual de *Systecam*. Selecciona que tipo de cliente sos:\n\na. 🏠 Cliente particular\n\nb. 🏢 Cliente corporativo";
 
-var PARTICULAR_MENU = 'Perfecto, elegiste la opcion "a." *Cliente particular*. Cual es el motivo de tu mensaje?\n\na. 🛡️ Necesito presupuesto para instalar y configurar un equipo de seguridad\n\nb. 🔧 Necesito presupuesto por un servicio tecnico\n\nc. ⚽ Necesito informacion con respecto a *Systecam Sport*\n\nd. 👤 Necesito hablar con una persona\n\ne. ↩️ Volver al menu principal\n\nf. 👋 Finalizar conversacion';
+var PARTICULAR_MENU = 'Perfecto, elegiste la opcion "a." *Cliente particular*. Cual es el motivo de tu mensaje?\n\na. 🛡️ Necesito presupuesto para instalar y configurar un equipo de seguridad\n\nb. 🔧 Necesito presupuesto por un servicio tecnico\n\nc. ⚽ Necesito informacion con respecto a *Systecam Sport*\n\nd. 🛜 Necesito informacion con respecto a *Camaras Ezviz*\n\ne. 👤 Necesito hablar con una persona\n\nf. ↩️ Volver al menu principal\n\ng. 👋 Finalizar conversacion';
 
 var EQUIPMENT_MENU = 'Bien, elegiste la opcion "a." *Presupuesto para equipo de seguridad*. Que equipo necesitas instalar?\n\na. 📷 Camaras de seguridad\n\nb. 🔔 Central de alarma\n\nc. 🚪 Portero visor\n\nd. 🔑 Control de acceso\n\ne. 📋 Presupuesto por mas de una de las opciones\n\nf. ↩️ Volver al menu anterior\n\ng. 👋 Finalizar conversacion';
 
@@ -265,7 +265,7 @@ var STATES = {
 
   PARTICULAR: {
     msg: PARTICULAR_MENU,
-    next: { a: "EQUIPMENT", b: "SERVICE_TECH", c: "SPORT", d: "TALK_PERSON", e: "START", f: "END_FINALIZAR" }
+    next: { a: "EQUIPMENT", b: "SERVICE_TECH", c: "SPORT", d: "EZVIZ", e: "TALK_PERSON", f: "START", g: "END_FINALIZAR" }
   },
 
   CORPORATIVO: {
@@ -395,6 +395,33 @@ var STATES = {
     isEnd: true
   },
 
+  EZVIZ: {
+    msg: 'Genial, elegiste la opcion "d." *Camaras Ezviz* 🛜. Que necesitas?\n\na. 📖 Ver el catalogo de modelos de camaras Ezviz\n\nb. 🎥 Ver un instructivo de como añadir una camara Ezviz a tu cuenta\n\nc. 📄 Necesito un instructivo general\n\nd. ↩️ Volver al menu principal\n\ne. 👋 Finalizar conversacion',
+    next: { a: "EZVIZ_CATALOG", b: "EZVIZ_VIDEO", c: "EZVIZ_GENERAL", d: "START", e: "END_FINALIZAR" }
+  },
+
+  EZVIZ_CATALOG: {
+    msg: 'Perfecto! Te envio ahora mismo el *catalogo de camaras Ezviz* 📖 con todos los modelos disponibles. Te puedo ayudar con algo mas?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias',
+    sendPDF: true,
+    pdfUrl: "https://base44.app/api/apps/6a62196e2adcb0256123773e/files/mp/public/6a62196e2adcb0256123773e/d65e0d2e8_8a2f1096c_CatalogoCamarasWiFiEzviz.pdf",
+    pdfName: "Catalogo-Camaras-Ezviz-Systecam.pdf",
+    pdfCaption: "Catalogo de Camaras WiFi Ezviz - Systecam",
+    next: { a: "START", b: "END_NO_THANKS" }
+  },
+
+  EZVIZ_VIDEO: {
+    msg: 'Genial! Te envio ahora mismo el *video instructivo* 🎥 para agregar tu camara Ezviz a la cuenta. Te puedo ayudar con algo mas?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias',
+    sendVideo: true,
+    videoUrl: "https://base44.app/api/apps/6a62196e2adcb0256123773e/files/mp/public/6a62196e2adcb0256123773e/c29e38802_91386526c_WhatsAppVideo2026-08-11at20503PM.mp4",
+    videoCaption: "Como añadir una camara Ezviz a tu cuenta - Systecam",
+    next: { a: "START", b: "END_NO_THANKS" }
+  },
+
+  EZVIZ_GENERAL: {
+    msg: 'Por el momento estamos preparando el *instructivo general* 📄 de uso para camaras Ezviz. Mientras tanto, si necesitas ayuda podes contactar a nuestro personal de *lunes a sabado de 09:00 a 13:00*. Te puedo ayudar con algo mas?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias',
+    next: { a: "START", b: "END_NO_THANKS" }
+  },
+
   TALK_PERSON: {
     msg: 'Bien, elegiste la opcion "d." *Hablar con una persona* 👤. Para poder comunicarte con nuestro personal deberas esperar al horario de atencion, que es de *lunes a sabados de 09:00 a 13:00*. Ni bien lea su consulta le daran una respuesta. Te puedo ayudar con otra consulta?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias',
     next: { a: "START", b: "END_NO_THANKS" }
@@ -498,6 +525,32 @@ async function sendWhatsAppDocument(to, url, filename, caption) {
     console.log("WhatsApp PDF send:", JSON.stringify(data));
   } catch (err) {
     console.error("Error sending PDF:", err.message);
+  }
+}
+
+async function sendWhatsAppVideo(to, url, caption) {
+  var vidUrl = "https://graph.facebook.com/v19.0/" + PHONE_NUMBER_ID + "/messages";
+  try {
+    var res = await fetch(vidUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + META_TOKEN
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: to,
+        type: "video",
+        video: {
+          link: url,
+          caption: caption
+        }
+      })
+    });
+    var data2 = await res.json();
+    console.log("WhatsApp video send:", JSON.stringify(data2));
+  } catch (err) {
+    console.error("Error sending video:", err.message);
   }
 }
 
@@ -687,7 +740,7 @@ async function processMessage(from, userText) {
       }
       var next = STATES[nextState];
       if (next) {
-        var resultObj = { msg: next.msg, sendPDF: next.sendPDF || false, pdfUrl: next.pdfUrl, pdfName: next.pdfName, pdfCaption: next.pdfCaption };
+        var resultObj = { msg: next.msg, sendPDF: next.sendPDF || false, pdfUrl: next.pdfUrl, pdfName: next.pdfName, pdfCaption: next.pdfCaption, sendVideo: next.sendVideo || false, videoUrl: next.videoUrl, videoCaption: next.videoCaption };
         
         if (next.isDynamic) {
           var eventType2 = next.eventType;
@@ -765,6 +818,9 @@ app.post("/webhook", async function(req, res) {
     }
     if (result && result.sendPDF) {
       await sendWhatsAppDocument(from, result.pdfUrl, result.pdfName, result.pdfCaption);
+    }
+    if (result && result.sendVideo) {
+      await sendWhatsAppVideo(from, result.videoUrl, result.videoCaption);
     }
     // Log the conversation for Karen notifications
     var currentState = userStates.get(from);

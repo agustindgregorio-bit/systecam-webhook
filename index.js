@@ -418,7 +418,11 @@ var STATES = {
   },
 
   EZVIZ_GENERAL: {
-    msg: 'Por el momento estamos preparando el *instructivo general* 📄 de uso para camaras Ezviz. Mientras tanto, si necesitas ayuda podes contactar a nuestro personal de *lunes a sabado de 09:00 a 13:00*. Te puedo ayudar con algo mas?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias',
+    msg: 'Perfecto! Te envio ahora mismo el *instructivo general* 📄 con como crear un usuario en la app de Ezviz, como invitar a un familiar o amigo a ver tus camaras, y como desvincular una camara de tu cuenta. Te puedo ayudar con algo mas?\n\na. 🏠 Si, volver al menu principal\n\nb. 👋 No, gracias',
+    sendPDF: true,
+    pdfUrl: "https://base44.app/api/apps/6a62196e2adcb0256123773e/files/mp/public/6a62196e2adcb0256123773e/278d11e0b_6d91dea1c_instrcutivodedesvinculacionezviz.pdf",
+    pdfName: "Instructivos-Camaras-Ezviz-Systecam.pdf",
+    pdfCaption: "Instructivos de Camaras Ezviz - Systecam",
     next: { a: "START", b: "END_NO_THANKS" }
   },
 
